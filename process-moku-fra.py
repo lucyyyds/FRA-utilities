@@ -273,6 +273,6 @@ def process_moku_fra(csv_path: str, current_range: str | None = None, kI_overrid
 # -----------------------------
 # DEMO on the user's uploaded file
 # -----------------------------
-# infile = "/mnt/data/R-CR-FRA_20250904_173222_Traces.csv"
-# results = process_moku_fra(infile, current_range="10uA", kI_override=None)
-# results
+infile = "R-CR-FRA_20250904_173222_Traces.csv"
+results = process_moku_fra(infile, current_range="10uA", kI_override=None)
+results
