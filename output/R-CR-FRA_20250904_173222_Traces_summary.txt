@@ -1,0 +1,16 @@
+Impedance processing summary
+Input CSV: moku-data/R-CR-FRA_20250904_173222_Traces.csv
+kI (A/V): 1e-05
+Inverted I-mon: False
+
+Nyquist read-offs (raw):
+  HF intercept ~ Ru_raw  = 948.223 Ω
+  LF endpoint  ~ Ru+Rct_raw = 8044.146 Ω
+  Span (LF-HF) ~ Rct_raw = 7095.922 Ω
+  Peak(-Im) at f ≈ 0.153429 Hz, height ≈ 5012.965 Ω
+
+Randles fit (method=scipy):
+  Ru  = 993.819 Ω
+  Rct = 9901.03 Ω
+  C   = 0.000103378 F
+  Predicted f0 = 0.155493 Hz

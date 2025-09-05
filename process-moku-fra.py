@@ -168,8 +168,8 @@ def fit_randles(freq, Z):
 # -----------------------------
 def save_processed(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat, kI, inverted, method):
     base = os.path.splitext(os.path.basename(csv_in_path))[0]
-    out_csv = f"/mnt/data/{base}_impedance.csv"
-    out_txt = f"/mnt/data/{base}_summary.txt"
+    out_csv = f"output/{base}_impedance.csv"
+    out_txt = f"output/{base}_summary.txt"
 
     pd.DataFrame({
         "Frequency_Hz": freq,
@@ -250,6 +250,14 @@ def make_plots(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat):
     plt.axis('equal')
     plt.grid(True)
 
+    # save all plots to output/
+    base = os.path.splitext(os.path.basename(csv_in_path))[0]
+    out_dir = "output"
+    os.makedirs(out_dir, exist_ok=True)
+    for i, fig in enumerate(plt.get_fignums(), start=1):
+        plt.figure(fig)
+        plt.savefig(os.path.join(out_dir, f"{base}_plot{i}.png"), dpi=150)
+    plt.show()
 
 # -----------------------------
 # End-to-end convenience function
@@ -273,6 +281,6 @@ def process_moku_fra(csv_path: str, current_range: str | None = None, kI_overrid
 # -----------------------------
 # DEMO on the user's uploaded file
 # -----------------------------
-infile = "R-CR-FRA_20250904_173222_Traces.csv"
+infile = "moku-data/R-CR-FRA_20250904_173222_Traces.csv"
 results = process_moku_fra(infile, current_range="10uA", kI_override=None)
 results
