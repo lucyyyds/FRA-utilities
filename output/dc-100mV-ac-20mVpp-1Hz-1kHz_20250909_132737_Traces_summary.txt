@@ -1,0 +1,16 @@
+Impedance processing summary
+Input CSV: moku-data/dc-100mV-ac-20mVpp-1Hz-1kHz_20250909_132737_Traces.csv
+kI (A/V): 1e-05
+Inverted I-mon: False
+
+Nyquist read-offs (raw):
+  HF intercept ~ Ru_raw  = 26421.321 Ω
+  LF endpoint  ~ Ru+Rct_raw = 2568639.143 Ω
+  Span (LF-HF) ~ Rct_raw = 2542217.822 Ω
+  Peak(-Im) at f ≈ 3.1981 Hz, height ≈ 4370625.392 Ω
+
+Randles fit (method=scipy):
+  Ru  = 84552.4 Ω
+  Rct = 7.16796e+06 Ω
+  C   = 1.35426e-08 F
+  Predicted f0 = 1.63954 Hz
