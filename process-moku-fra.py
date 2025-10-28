@@ -24,6 +24,8 @@ CAL_KI = {
     "1uA":  1.0e-6,
     "100uA": 1.0e-4,
     "1mA":   1.0e-3,
+    "10mA":  1.0e-2,
+    "100mA": 1.0e-1,
 }
 
 def pick_kI(current_range: str | None, kI_override: float | None):
