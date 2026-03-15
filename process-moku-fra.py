@@ -9,6 +9,8 @@
 # - If SciPy is available, a nonlinear least-squares fit is used; otherwise a coarse fallback is used.
 
 import os
+import re
+import datetime
 import math
 from io import StringIO
 import numpy as np
@@ -69,8 +71,8 @@ def load_moku_csv(csv_path: str) -> pd.DataFrame:
             df.columns = names7 + [f"Extra_{i}" for i in range(df.shape[1]-7)]
         else:
             raise
-    return df
 
+    return df
 
 # -----------------------------
 # Impedance computation
@@ -86,6 +88,13 @@ def compute_impedance(df: pd.DataFrame, kI: float, invert_if_needed: bool = True
     Returns frequency array, complex Z, and a flag indicating if inversion was applied.
     """
     freq = df["Frequency_Hz"].to_numpy(dtype=float)
+
+    # # use data with a specified frequency range
+    # freq_min = 2.5  # Hz
+    # freq_max = 1000.0  # Hz
+    # valid = (freq >= freq_min) & (freq <= freq_max)
+    # freq = freq[valid]
+    # df = df[valid].reset_index(drop=True)  
 
     # Prefer Math ratio if provided, else compute from Ch1/Ch2
     if not df["Math_Mag_dB"].isna().all() and not df["Math_Phase_deg"].isna().all():
@@ -108,7 +117,6 @@ def compute_impedance(df: pd.DataFrame, kI: float, invert_if_needed: bool = True
             inverted = True
 
     return freq, Z, inverted
-
 
 # -----------------------------
 # Randles model fit: Ru + (Rct || C)
@@ -164,14 +172,49 @@ def fit_randles(freq, Z):
 
     return Ru_hat, Rct_hat, C_hat, method
 
+# -----------------------------
+# Output location
+# -----------------------------
+# All processed CSVs, summaries, and plots will be written under this root, in a per-date subfolder.
+OUTPUT_ROOT = r"C:\Users\Lucy\OneDrive - University of Toronto\Grad\CAN\experimental results\EIS\moku-FRA\processed data"
+
+def extract_date_folder_from_moku_filename(csv_path: str) -> str:
+    """
+    Extract the date folder name from a Moku FRA trace filename.
+
+    Expected pattern (common):
+      <anything>_YYYYMMDD_HHMMSS_<anything>.csv
+
+    Example:
+      20260122-VBG-3-1Hz-20kHz_20260122_181251_Traces.csv  ->  "20260122"
+
+    Fallback:
+      - If the pattern isn't found, use the first 8-digit run in the stem.
+      - Otherwise, use today's date YYYYMMDD.
+    """
+    stem = os.path.splitext(os.path.basename(csv_path))[0]
+
+    m = re.search(r"_(\d{8})_(\d{6})_", stem)
+    if m:
+        return m.group(1)
+
+    m2 = re.search(r"(\d{8})", stem)
+    if m2:
+        return m2.group(1)
+
+    return datetime.date.today().strftime("%Y%m%d")
 
 # -----------------------------
 # Save outputs
 # -----------------------------
 def save_processed(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat, kI, inverted, method):
     base = os.path.splitext(os.path.basename(csv_in_path))[0]
-    out_csv = f"output/{base}_impedance.csv"
-    out_txt = f"output/{base}_summary.txt"
+    date_folder = extract_date_folder_from_moku_filename(csv_in_path)
+    out_dir = os.path.join(OUTPUT_ROOT, date_folder)
+    os.makedirs(out_dir, exist_ok=True)
+
+    out_csv = os.path.join(out_dir, f"{base}_impedance.csv")
+    out_txt = os.path.join(out_dir, f"{base}_summary.txt")
 
     pd.DataFrame({
         "Frequency_Hz": freq,
@@ -190,7 +233,7 @@ def save_processed(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat, kI, inverted, m
     # predicted f0 from fit
     f0_fit = 1.0 / (2*np.pi*Rct_hat*C_hat) if (Rct_hat>0 and C_hat>0) else float("nan")
 
-    with open(out_txt, "w") as f:
+    with open(out_txt, "w", encoding="utf-8") as f:
         f.write(
             "Impedance processing summary\n"
             f"Input CSV: {csv_in_path}\n"
@@ -208,13 +251,18 @@ def save_processed(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat, kI, inverted, m
             f"  Predicted f0 = {f0_fit:.6g} Hz\n"
         )
 
-    return out_csv, out_txt
+    return out_csv, out_txt, out_dir
 
 
 # -----------------------------
 # Plotting
 # -----------------------------
-def make_plots(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat):
+def make_plots(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat, out_dir):
+    base = os.path.splitext(os.path.basename(csv_in_path))[0]
+
+    # Capture figures created within this call only
+    figs_before = set(plt.get_fignums())
+
     # Nyquist
     plt.figure()
     plt.plot(np.real(Z), -np.imag(Z), '.', markersize=3)
@@ -252,14 +300,13 @@ def make_plots(csv_in_path, freq, Z, Ru_hat, Rct_hat, C_hat):
     plt.axis('equal')
     plt.grid(True)
 
-    # save all plots to output/
-    base = os.path.splitext(os.path.basename(csv_in_path))[0]
-    out_dir = "output"
     os.makedirs(out_dir, exist_ok=True)
-    for i, fig in enumerate(plt.get_fignums(), start=1):
-        plt.figure(fig)
-        plt.savefig(os.path.join(out_dir, f"{base}_plot{i}.png"), dpi=150)
+    figs_after = [f for f in plt.get_fignums() if f not in figs_before]
+    for i, fig_num in enumerate(figs_after, start=1):
+        plt.figure(fig_num)
+        plt.savefig(os.path.join(out_dir, f"{base}_plot{i}.png"), dpi=150, bbox_inches="tight")
     plt.show()
+
 
 # -----------------------------
 # End-to-end convenience function
@@ -269,9 +316,12 @@ def process_moku_fra(csv_path: str, current_range: str | None = None, kI_overrid
     df = load_moku_csv(csv_path)
     freq, Z, inverted = compute_impedance(df, kI=kI, invert_if_needed=True)
     Ru_hat, Rct_hat, C_hat, method = fit_randles(freq, Z)
-    out_csv, out_txt = save_processed(csv_path, freq, Z, Ru_hat, Rct_hat, C_hat, kI, inverted, method)
-    make_plots(csv_path, freq, Z, Ru_hat, Rct_hat, C_hat)
+
+    out_csv, out_txt, out_dir = save_processed(csv_path, freq, Z, Ru_hat, Rct_hat, C_hat, kI, inverted, method)
+    make_plots(csv_path, freq, Z, Ru_hat, Rct_hat, C_hat, out_dir)
+
     return {
+        "output_dir": out_dir,
         "processed_csv": out_csv,
         "summary_txt": out_txt,
         "kI": kI,
@@ -283,6 +333,6 @@ def process_moku_fra(csv_path: str, current_range: str | None = None, kI_overrid
 # -----------------------------
 # DEMO on the user's uploaded file
 # -----------------------------
-infile = "moku-data/R-CR-FRA_20250904_173222_Traces.csv"
+infile = r"C:\Users\Lucy\OneDrive - University of Toronto\Grad\CAN\experimental results\raw data\Moku go\FRA\20260220\PBS\VLG100mV-VDS30mV_20260220_131857_Traces.csv"
 results = process_moku_fra(infile, current_range="10uA", kI_override=None)
 results
